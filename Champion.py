@@ -1,4 +1,5 @@
 from __future__ import annotations
+from copy import deepcopy
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from Item import Item
@@ -10,7 +11,7 @@ from Stats import Stats
 
 
 class Champion:
-    def __init__(self, base_ad, base_as, ad_per_level, as_per_level, name, level=18):
+    def __init__(self, base_ad, base_as, base_ms, ad_per_level, as_per_level, name, level=18):
         self.name : str = name
         self.stats = Stats()
         self.stats.level = level
@@ -25,6 +26,7 @@ class Champion:
         self.stats.bonus_as = 0
         self.stats.lethality = 0
         self.stats.armor_pen = 0
+        self.stats.ms = base_ms
         self.is_ranged = True
         self.items : list[Item] = []
         self.buffs : dict[str, Buff] = {}
@@ -33,12 +35,14 @@ class Champion:
         # Buffs
         self.stats_from_buffs = {"bonus_as" : 0}
         for buff_name in list(self.buffs.keys()):
-            buff = self.buffs[buff_name]
+            buff : Buff = self.buffs[buff_name]
             buff_state = buff.update(current_time)
             if buff_state == 1: # buff_hasToBeApplied
-                self.bonus_as += buff.buffed_stats.get("bonus_as", 0)
+                for key in buff.buffed_stats.keys():
+                    self.stats.__dict__[key] += buff.buffed_stats[key]
             elif buff_state == -1 : # buff_hasRanOff
-                self.bonus_as -= buff.buffed_stats.get("bonus_as", 0)
+                for key in buff.buffed_stats.keys():
+                    self.stats.__dict__[key] -= buff.buffed_stats[key]
                 del self.buffs[buff_name]
                
     def add_buff(self, buff_name : str, buffed_stat : dict, expiration_time : float) -> None:
@@ -58,32 +62,35 @@ class Champion:
         base_dmg = self.stats.ad * (self.stats.crit_dmg / 100 if is_crit else 1)
         
         # Armor penetration
-        effective_armor = target.get_effective_armor(self.stats.armor_pen)
+        effective_armor = target.get_effective_armor(self.stats.lethality, self.stats.armor_pen)
         dmg_multiplier = 100 / (100 + effective_armor)
         
         # On-hit effects
         on_hit_dmg = {}
         for item in self.items:
             if(item.on_hit is None) : continue
-            on_hit_dmg[item.name] = round(item.on_hit(self, target, current_time, is_crit=is_crit) * dmg_multiplier)
+            if(type(item.on_hit) == list) :
+                on_hits_sum = 0
+                for current_on_hit in item.on_hit: # type: ignore
+                    on_hits_sum += round(current_on_hit(self, target, current_time, is_crit=is_crit) * dmg_multiplier)
+                on_hit_dmg[item.name] = on_hits_sum
+            else : on_hit_dmg[item.name] = round(item.on_hit(self, target, current_time, is_crit=is_crit) * dmg_multiplier)
             
         sum_on_hit = sum(on_hit_dmg.values())
         return round(base_dmg * dmg_multiplier) + sum_on_hit, on_hit_dmg, is_crit
 
     def add_item(self, item: Item):
         """Apply item stats to champion"""
+        item = deepcopy(item)
         self.stats.ad += item.stats.ad
         self.stats.crit_chance += item.stats.crit_chance
         self.stats.bonus_as += item.stats.bonus_as
         self.stats.lethality += item.stats.lethality
+        self.stats.crit_dmg += item.stats.crit_dmg
         
         # Multiplicative armor pen stacking
         if item.stats.armor_pen > 0:
             self.stats.armor_pen = 1 - (1 - self.stats.armor_pen) * (1 - item.stats.armor_pen)
-        
-        # Critical damage modifiers
-        if item.stats.crit_dmg > 0:
-            self.stats.crit_dmg = 1 + (self.stats.crit_dmg - 1) + item.stats.crit_dmg
         
         self.items.append(item)
         return self

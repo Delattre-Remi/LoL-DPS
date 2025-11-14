@@ -1,13 +1,14 @@
 from Champion import Champion
 from Target import Target
 from Item import ITEM
+from colorama import Fore, Back, Style
 
 import random
 
 DAMAGE_TARGET = True
 
-def calculate(Champ : Champion, Dummy : Target, rng = random.Random(0), verbose = 0) -> float:
-    end_time = 200
+def calculate(Champ : Champion, Dummy : Target, testTime : int = 200, rng = random.Random(0), verbose = 0) -> float:
+    end_time = testTime
     current_time = 0
     total_damage = 0
     current_dps = 0
@@ -38,23 +39,31 @@ def calculate(Champ : Champion, Dummy : Target, rng = random.Random(0), verbose 
                 items_messages[item.name] += f" {key.title()} {item.passive[key]}"
         
         verbose_str = ""
-        if(verbose > 0) : verbose_str = f"[{current_time}s] <{Champ.name}> AA Dmg {str(damage_done).ljust(3, " ")} | {" Crit !" if is_crit else "No Crit"} | Current DPS {current_dps:.2f} | Total {total_damage} | Target HP {Dummy.stats.current_hp}"
-        if(verbose > 1) : verbose_str += f"\n{" : ".join(items_messages.values())} | {sum_items_dmg}"
+        if(verbose > 0) : 
+            prefix = f"{Fore.LIGHTBLACK_EX}[{current_time:.2f}s]{Fore.RESET}"
+            aa_dmg = f"{Fore.LIGHTYELLOW_EX if is_crit else Fore.LIGHTBLACK_EX}AA Dmg {str(damage_done).ljust(3, " ")}{Fore.RESET}"
+            current_dps_str = f"{Fore.YELLOW}Current DPS {current_dps:.2f}{Fore.RESET}"
+            dummy_str = f"{Fore.LIGHTGREEN_EX}Target HP {Dummy.stats.current_hp} {Fore.LIGHTBLUE_EX + "(L)" if Dummy.hp_locked else ''}{Fore.RESET}"
+            verbose_str = f"{prefix: >18} | {aa_dmg} | {current_dps_str} | {dummy_str}"
+        if(verbose > 1) : verbose_str += f" | Items Passives : {" : ".join(items_messages.values())} | {sum_items_dmg}"
         if(verbose > 2) : verbose_str += f"\n{str(Champ)}"
         if(verbose > 0) : print(verbose_str)
 
     return total_damage/current_time
 
-target = Target(1000, 0)
+target = Target(2000, 30, hp_locked=True)
 seed = random.random()
+seededRandom = random.Random(seed)
+VERBOSE = 1
+testTime = 20
 
-for l in range(1, 2):
-    Jinx = Champion(59, 0.625, 3.25, 0.014, "Jinx", level=l)
-    print(Jinx)
-    DPS = calculate(Jinx, target, rng=random.Random(seed), verbose=1)
-    print(str(l).rjust(2, " "), Jinx, DPS)
-    
-    Jinx = Champion(59, 0.625, 3.25, 0.014, "Jinx", level=l).add_item(ITEM.LDR)
-    print(Jinx)
-    DPS = calculate(Jinx, target, rng=random.Random(seed), verbose=1)
-    print(str(l).rjust(2, " "), Jinx, DPS)
+if(testTime > 100) : VERBOSE = 0
+
+l = 18
+Jinx = Champion(59, 0.625, 325, 3.25, 0.014, "Jinx", level=l).add_item(ITEM.BRK)
+DPS = calculate(Jinx, target, testTime, rng=seededRandom, verbose=VERBOSE)
+print(str(l).rjust(2, " "), Jinx, "| DPS :", DPS)
+
+Jinx = Champion(59, 0.625, 325, 3.25, 0.014, "Jinx", level=l).add_item(ITEM.YunTal)
+DPS = calculate(Jinx, target, testTime, rng=seededRandom, verbose=VERBOSE)
+print(str(l).rjust(2, " "), Jinx, "| DPS :", DPS)

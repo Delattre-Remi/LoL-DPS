@@ -1,7 +1,7 @@
 class Buff:
     def __init__(self, name : str, buffed_stats : dict, expiration_time : float):
         self.name = name
-        self.buffed_stats = buffed_stats
+        self.buffed_stats : dict[str, int] = buffed_stats
         self.expiration_time = expiration_time
         self.hasToBeApplied = False
     
